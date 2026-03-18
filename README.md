@@ -110,6 +110,43 @@ http://localhost:8000/source/domestic-observations/1
 http://localhost:8000/source/market-observations/1
 ```
 
+## Render Deployment
+
+This repo now includes a `render.yaml` blueprint for deploying:
+
+- one Docker-based FastAPI web service
+- one managed Render Postgres database
+- both configured on Render free plans
+
+Files added for deployment readiness:
+
+- `render.yaml`
+- `.dockerignore`
+- Dockerfile now honors the platform `PORT` environment variable
+
+### Deploy Steps
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint and point it at the repo.
+3. Render will create:
+   - `aslan-energy-api`
+   - `aslan-energy-db`
+4. During setup, provide the secret value for:
+   - `EIA_API_KEY`
+5. After the first deploy, open:
+   - `/health`
+   - `/dashboard`
+
+### Render Environment Notes
+
+- `DATABASE_URL` is injected from the managed Postgres instance.
+- `PORT` is set to `10000` in `render.yaml`.
+- Scheduler remains enabled, so the single deployed web instance will continue creating forecast and risk artifacts automatically.
+- If you later scale the web service above one instance, scheduler ownership should be separated into a dedicated worker to avoid duplicate scheduled runs.
+- The current blueprint uses Render `free` plans for both the web service and Postgres.
+- Important limitation: Render's free Postgres expires 30 days after creation and has no backups.
+- Important limitation: Render free web services spin down after 15 minutes of inactivity, so the first request after idle will be slow.
+
 ## Scheduler Settings
 
 These values can be configured in `.env`:

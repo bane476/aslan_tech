@@ -1,0 +1,35 @@
+databases:
+  - name: aslan-energy-db
+    databaseName: aslan_energy
+    user: aslan_energy
+    plan: free
+
+services:
+  - type: web
+    runtime: docker
+    name: aslan-energy-api
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aslan-energy-db
+          property: connectionString
+      - key: EIA_API_KEY
+        sync: false
+      - key: EIA_SERIES_CONFIG_PATH
+        value: data_sources/energy_market/eia_series.json
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: SCHEDULER_INTERVAL_SECONDS
+        value: "3600"
+      - key: SCHEDULER_RUN_ON_STARTUP
+        value: "true"
+      - key: SCHEDULER_HORIZONS
+        value: 30,60
