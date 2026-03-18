@@ -60,6 +60,7 @@ def render_dashboard_html() -> HTMLResponse:
     .panel-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 18px; }
     .chart { height: 220px; width: 100%; background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.25)); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
     .chart svg { width: 100%; height: 100%; overflow: visible; }
+    .chart-note { margin-top: 10px; color: var(--muted); font-size: 12px; }
     .legend { margin-top: 14px; color: var(--muted); font-size: 13px; }
     .legend span { display: inline-flex; align-items: center; gap: 8px; }
     .legend i { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
@@ -164,21 +165,37 @@ def render_dashboard_html() -> HTMLResponse:
       const baseline = height - padding;
       return `${line} L ${endX} ${baseline} L ${startX} ${baseline} Z`;
     }
+    function pointMarkup(values, width, height, padding, color) {
+      if (!values.length) return '';
+      const max = Math.max(...values);
+      const min = Math.min(...values);
+      const range = Math.max(max - min, 1);
+      return values.map((value, index) => {
+        const x = padding + ((width - padding * 2) * index / Math.max(values.length - 1, 1));
+        const y = height - padding - ((value - min) / range) * (height - padding * 2);
+        return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="5.5" fill="${color}" stroke="rgba(255,255,255,0.9)" stroke-width="2"></circle>`;
+      }).join('');
+    }
     function chartMarkup(values, color) {
       const width = 620;
       const height = 220;
       const padding = 14;
+      const safeValues = values.length ? values : [0];
+      const pointCountText = safeValues.length === 1 ? '1 persisted point' : `${safeValues.length} persisted points`;
       return `
-        <svg viewBox=\"0 0 ${width} ${height}\" preserveAspectRatio=\"none\">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
           <defs>
-            <linearGradient id=\"fill-${color.replace('#','')}\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\">
-              <stop offset=\"0%\" stop-color=\"${color}\" stop-opacity=\"0.28\"></stop>
-              <stop offset=\"100%\" stop-color=\"${color}\" stop-opacity=\"0.02\"></stop>
+            <linearGradient id="fill-${color.replace('#','')}" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.28"></stop>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0.02"></stop>
             </linearGradient>
           </defs>
-          <path d=\"${areaPath(values, width, height, padding)}\" fill=\"url(#fill-${color.replace('#','')})\"></path>
-          <path d=\"${buildLinePath(values, width, height, padding)}\" fill=\"none\" stroke=\"${color}\" stroke-width=\"4\" stroke-linecap=\"round\"></path>
-        </svg>`;
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="rgba(24,33,38,0.16)" stroke-width="2"></line>
+          <path d="${areaPath(safeValues, width, height, padding)}" fill="url(#fill-${color.replace('#','')})"></path>
+          <path d="${buildLinePath(safeValues, width, height, padding)}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"></path>
+          ${pointMarkup(safeValues, width, height, padding, color)}
+        </svg>
+        <div class="chart-note">${pointCountText}</div>`;
     }
     function refreshStatusLine() {
       if (!latestRunMeta.timestamp) return 'Using persisted history';
@@ -455,6 +472,8 @@ def render_dashboard_html() -> HTMLResponse:
 </body>
 </html>"""
     return HTMLResponse(content=html)
+
+
 
 
 
