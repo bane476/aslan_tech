@@ -1,0 +1,20 @@
+[
+  {
+    "metric_name": "brent_price",
+    "series_id": "PET.RBRTE.D",
+    "length": 365,
+    "unit": "USD per barrel"
+  },
+  {
+    "metric_name": "wti_price",
+    "series_id": "PET.RWTC.D",
+    "length": 365,
+    "unit": "USD per barrel"
+  },
+  {
+    "metric_name": "us_commercial_crude_inventory",
+    "series_id": "PET.WCESTUS1.W",
+    "length": 260,
+    "unit": "Thousand barrels"
+  }
+]

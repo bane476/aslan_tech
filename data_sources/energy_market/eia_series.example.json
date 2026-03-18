@@ -1,0 +1,16 @@
+[
+  {
+    "metric_name": "brent_price",
+    "path": "petroleum/pri/spt/data/",
+    "frequency": "daily",
+    "data_fields": ["value"],
+    "value_field": "value",
+    "series_id": "configure-from-eia-catalog",
+    "unit": "USD per barrel",
+    "length": 365,
+    "facets": {
+      "product": ["EPCBRENT"],
+      "area": ["RBRTE"]
+    }
+  }
+]

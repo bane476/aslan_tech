@@ -1,0 +1,389 @@
+﻿from fastapi.responses import HTMLResponse
+
+
+def render_dashboard_html() -> HTMLResponse:
+    html = """<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"UTF-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+  <title>Aslan Energy Risk Dashboard</title>
+  <style>
+    :root {
+      --bg: #f3efe5;
+      --surface: rgba(255, 252, 245, 0.82);
+      --ink: #182126;
+      --muted: #5b676d;
+      --line: rgba(24, 33, 38, 0.12);
+      --accent: #0d6c63;
+      --accent-soft: rgba(13, 108, 99, 0.14);
+      --warning: #c26a1b;
+      --danger: #ad3f34;
+      --shadow: 0 20px 60px rgba(32, 44, 48, 0.08);
+      --up: #0d6c63;
+      --down: #ad3f34;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI Variable Display", "Aptos", "Trebuchet MS", sans-serif; color: var(--ink); background: radial-gradient(circle at top left, rgba(13, 108, 99, 0.16), transparent 32%), radial-gradient(circle at top right, rgba(194, 106, 27, 0.18), transparent 28%), linear-gradient(180deg, #f7f1e5 0%, var(--bg) 55%, #ebe5d8 100%); min-height: 100vh; }
+    button { font: inherit; cursor: pointer; border: none; background: none; }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 32px 20px 48px; }
+    .hero { display: grid; grid-template-columns: 1.4fr 0.9fr; gap: 18px; margin-bottom: 18px; }
+    .hero-panel, .panel, .metric-card { background: var(--surface); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
+    .hero-panel { padding: 28px; min-height: 220px; position: relative; overflow: hidden; }
+    .hero-panel::after { content: ""; position: absolute; inset: auto -40px -60px auto; width: 220px; height: 220px; background: radial-gradient(circle, rgba(13, 108, 99, 0.18), transparent 70%); border-radius: 50%; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    h1, h2, h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 600; }
+    h1 { font-size: clamp(32px, 5vw, 56px); line-height: 0.96; max-width: 10ch; }
+    .hero-copy { margin-top: 14px; max-width: 52ch; color: var(--muted); line-height: 1.6; font-size: 15px; }
+    .hero-meta, .controls, .compare-grid, .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+    .hero-meta { margin-top: 20px; }
+    .controls { margin-top: 18px; align-items: center; }
+    .pill { border-radius: 999px; padding: 9px 14px; background: rgba(255,255,255,0.68); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+    .segment { display: inline-flex; padding: 4px; background: rgba(255,255,255,0.72); border: 1px solid var(--line); border-radius: 999px; }
+    .segment button { padding: 9px 14px; border-radius: 999px; color: var(--muted); transition: background 180ms ease, color 180ms ease, transform 180ms ease; }
+    .segment button.active { background: var(--accent); color: white; transform: translateY(-1px); }
+    .action { padding: 10px 14px; border-radius: 999px; background: var(--ink); color: white; box-shadow: var(--shadow); }
+    .action.secondary { background: rgba(255,255,255,0.76); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+    .status-board { display: grid; gap: 14px; padding: 20px; }
+    .status-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: rgba(255,255,255,0.56); border: 1px solid var(--line); }
+    .status-label, .metric-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    .status-value { font-size: 22px; font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+    .metric-card { padding: 20px; min-height: 170px; display: flex; flex-direction: column; justify-content: space-between; grid-column: span 3; }
+    .metric-value { font-size: clamp(28px, 4vw, 44px); font-weight: 650; line-height: 1; margin-top: 10px; }
+    .metric-sub, .panel-copy, .small, .meta-note { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .panel { padding: 22px; grid-column: span 6; }
+    .panel.wide { grid-column: span 8; }
+    .panel.narrow { grid-column: span 4; }
+    .panel-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 18px; }
+    .chart { height: 220px; width: 100%; background: linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.25)); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+    .chart svg { width: 100%; height: 100%; overflow: visible; }
+    .legend { margin-top: 14px; color: var(--muted); font-size: 13px; }
+    .legend span { display: inline-flex; align-items: center; gap: 8px; }
+    .legend i { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
+    .feed, .driver-list, .table-stack, .evidence-stack { display: grid; gap: 12px; }
+    .feed-item, .driver-item, .compare-card, .evidence-item { padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,0.58); border: 1px solid var(--line); }
+    .feed-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; align-items: center; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 6px 10px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: var(--accent-soft); color: var(--accent); }
+    .badge.medium { background: rgba(194, 106, 27, 0.12); color: var(--warning); }
+    .badge.high { background: rgba(173, 63, 52, 0.12); color: var(--danger); }
+    .mono { font-family: Consolas, "SFMono-Regular", monospace; }
+    .compare-grid { margin-top: 18px; }
+    .compare-card { min-width: 190px; }
+    .compare-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    .compare-main { font-size: 26px; font-weight: 650; margin-top: 8px; }
+    .delta { margin-top: 10px; font-size: 13px; font-weight: 600; }
+    .delta.up { color: var(--up); }
+    .delta.down { color: var(--down); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.46); }
+    table { width: 100%; border-collapse: collapse; min-width: 520px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
+    th { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+    tr:last-child td { border-bottom: none; }
+    .evidence-item { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
+    .evidence-meta { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .loading { display: grid; place-items: center; min-height: 60vh; color: var(--muted); font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .metric-card { grid-column: span 6; }
+      .panel, .panel.wide, .panel.narrow { grid-column: span 12; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { padding: 18px 14px 32px; }
+      .metric-card { grid-column: span 12; }
+      .hero-panel { padding: 22px; }
+      .status-row, .evidence-item { align-items: start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div id=\"app\" class=\"loading\">Loading dashboard...</div>
+  <script>
+    const currency = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
+    let selectedHorizon = 30;
+    let latestRunMeta = { mode: 'persisted', timestamp: null };
+
+    function metric(value) {
+      return value == null ? 'n/a' : currency.format(value);
+    }
+
+    function isoDate(value) {
+      if (!value) return 'n/a';
+      return new Date(value).toLocaleString('en-IN', {
+        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function riskBadge(level) {
+      const normalized = String(level || '').toLowerCase();
+      if (normalized === 'high') return 'badge high';
+      if (normalized === 'medium' || normalized === 'watchlist') return 'badge medium';
+      return 'badge';
+    }
+
+    function deltaClass(delta) {
+      if (delta > 0) return 'delta up';
+      if (delta < 0) return 'delta down';
+      return 'delta';
+    }
+
+    function deltaText(current, previous) {
+      if (current == null || previous == null) return 'No prior comparison';
+      const delta = current - previous;
+      const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+      const prefix = delta > 0 ? '+' : '';
+      return { text: `${prefix}${delta.toFixed(2)} vs previous (${direction})`, className: deltaClass(delta) };
+    }
+
+    function buildLinePath(values, width, height, padding) {
+      if (!values.length) return '';
+      const max = Math.max(...values);
+      const min = Math.min(...values);
+      const range = Math.max(max - min, 1);
+      return values.map((value, index) => {
+        const x = padding + ((width - padding * 2) * index / Math.max(values.length - 1, 1));
+        const y = height - padding - ((value - min) / range) * (height - padding * 2);
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      }).join(' ');
+    }
+
+    function areaPath(values, width, height, padding) {
+      if (!values.length) return '';
+      const line = buildLinePath(values, width, height, padding);
+      const startX = padding;
+      const endX = width - padding;
+      const baseline = height - padding;
+      return `${line} L ${endX} ${baseline} L ${startX} ${baseline} Z`;
+    }
+
+    function chartMarkup(values, color) {
+      const width = 620;
+      const height = 220;
+      const padding = 14;
+      return `
+        <svg viewBox=\"0 0 ${width} ${height}\" preserveAspectRatio=\"none\">
+          <defs>
+            <linearGradient id=\"fill-${color.replace('#','')}\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\">
+              <stop offset=\"0%\" stop-color=\"${color}\" stop-opacity=\"0.28\"></stop>
+              <stop offset=\"100%\" stop-color=\"${color}\" stop-opacity=\"0.02\"></stop>
+            </linearGradient>
+          </defs>
+          <path d=\"${areaPath(values, width, height, padding)}\" fill=\"url(#fill-${color.replace('#','')})\"></path>
+          <path d=\"${buildLinePath(values, width, height, padding)}\" fill=\"none\" stroke=\"${color}\" stroke-width=\"4\" stroke-linecap=\"round\"></path>
+        </svg>`;
+    }
+
+    function refreshStatusLine() {
+      if (!latestRunMeta.timestamp) return 'Using persisted history';
+      if (latestRunMeta.mode === 'live-refresh') return `Fresh run completed at ${isoDate(latestRunMeta.timestamp)}`;
+      return `Viewing persisted artifacts as of ${isoDate(latestRunMeta.timestamp)}`;
+    }
+
+    function compactRows(rows, renderer) {
+      if (!rows.length) return '<div class="feed-item">No persisted rows yet.</div>';
+      return rows.map(renderer).join('');
+    }
+
+    function renderEvidence(rows) {
+      if (!rows.length) return '<div class="feed-item">No source observations available yet.</div>';
+      return rows.map(item => `
+        <div class=\"evidence-item\">
+          <div>
+            <div><strong>${item.metric_name}</strong></div>
+            <div class=\"evidence-meta\">${item.source_name} • ${item.observation_date}</div>
+          </div>
+          <div><strong>${metric(item.value)}</strong> <span class=\"muted\">${item.unit || ''}</span></div>
+        </div>
+      `).join('');
+    }
+
+    function render(data) {
+      const demand = data.demand.items || [];
+      const supply = data.supply.items || [];
+      const risks = data.risk.items || [];
+      const alerts = data.alerts.items || [];
+      const domestic = data.domestic.items || [];
+      const market = data.market.items || [];
+      const latestDemand = demand[0];
+      const priorDemand = demand[1];
+      const latestSupply = supply[0];
+      const priorSupply = supply[1];
+      const latestRisk = risks[0];
+      const priorRisk = risks[1];
+      const latestAlert = alerts[0];
+
+      if (!latestRunMeta.timestamp) {
+        latestRunMeta.timestamp = latestRisk?.as_of || latestAlert?.as_of || new Date().toISOString();
+      }
+
+      const demandValues = [...demand].reverse().map(item => item.predicted_lpg_demand);
+      const supplyValues = [...supply].reverse().map(item => item.expected_crude_arrival_volume);
+      const riskValues = [...risks].reverse().map(item => item.risk_score);
+      const demandDelta = deltaText(latestDemand?.predicted_lpg_demand, priorDemand?.predicted_lpg_demand);
+      const supplyDelta = deltaText(latestSupply?.expected_crude_arrival_volume, priorSupply?.expected_crude_arrival_volume);
+      const riskDelta = deltaText(latestRisk?.risk_score, priorRisk?.risk_score);
+
+      const app = document.getElementById('app');
+      app.className = 'shell';
+      app.innerHTML = `
+        <section class=\"hero\">
+          <div class=\"hero-panel\">
+            <div class=\"eyebrow\">Aslan Technologies</div>
+            <h1>Energy risk cockpit for India-focused supply stress.</h1>
+            <div class=\"hero-copy\">This dashboard reads persisted forecast, risk, alert, and source-input artifacts from the API. It is designed as an operator view: latest state first, trend context second, raw drivers and source evidence always visible.</div>
+            <div class=\"controls\">
+              <div class=\"segment\">
+                <button class=\"${selectedHorizon === 30 ? 'active' : ''}\" data-horizon=\"30\">30 day</button>
+                <button class=\"${selectedHorizon === 60 ? 'active' : ''}\" data-horizon=\"60\">60 day</button>
+              </div>
+              <button id=\"run-refresh\" class=\"action\">Run latest snapshot</button>
+              <button id=\"reload-history\" class=\"action secondary\">Reload persisted history</button>
+            </div>
+            <div class=\"hero-meta\">
+              <div class=\"pill\">PPAC + EIA backed</div>
+              <div class=\"pill\">Live API source: <span class=\"mono\">/history/* + /source/*</span></div>
+              <div class=\"pill\">Horizon: ${selectedHorizon} days</div>
+            </div>
+            <div class=\"meta-note\">${refreshStatusLine()}</div>
+            <div class=\"compare-grid\">
+              <div class=\"compare-card\"><div class=\"compare-label\">Demand delta</div><div class=\"compare-main\">${metric(latestDemand?.predicted_lpg_demand)}</div><div class=\"${demandDelta.className}\">${demandDelta.text}</div></div>
+              <div class=\"compare-card\"><div class=\"compare-label\">Supply delta</div><div class=\"compare-main\">${metric(latestSupply?.expected_crude_arrival_volume)}</div><div class=\"${supplyDelta.className}\">${supplyDelta.text}</div></div>
+              <div class=\"compare-card\"><div class=\"compare-label\">Risk delta</div><div class=\"compare-main\">${latestRisk ? latestRisk.risk_score.toFixed(2) : 'n/a'}</div><div class=\"${riskDelta.className}\">${riskDelta.text}</div></div>
+            </div>
+          </div>
+          <div class=\"hero-panel status-board\">
+            <div class=\"status-row\"><div><div class=\"status-label\">Latest Risk</div><div class=\"small muted\">${selectedHorizon}-day horizon</div></div><div><div class=\"status-value\">${latestRisk ? latestRisk.risk_score.toFixed(2) : 'n/a'}</div><div class=\"${riskBadge(latestRisk?.risk_level)}\">${latestRisk?.risk_level || 'No data'}</div></div></div>
+            <div class=\"status-row\"><div><div class=\"status-label\">Demand vs LPG Proxy</div><div class=\"small muted\">Latest computed gap</div></div><div class=\"status-value\">${latestRisk ? latestRisk.supply_gap_score.toFixed(2) : 'n/a'}</div></div>
+            <div class=\"status-row\"><div><div class=\"status-label\">Active Alert</div><div class=\"small muted\">Most recent persisted alert</div></div><div class=\"${riskBadge(latestAlert?.level)}\">${latestAlert?.level || 'CLEAR'}</div></div>
+          </div>
+        </section>
+
+        <section class=\"grid\" style=\"margin-bottom:18px;\">
+          <article class=\"metric-card\"><div><div class=\"metric-label\">Demand Forecast</div><div class=\"metric-value\">${metric(latestDemand?.predicted_lpg_demand)}</div></div><div class=\"metric-sub\">${selectedHorizon}-day LPG demand forecast with interval ${latestDemand ? `${metric(latestDemand.lower_bound)} to ${metric(latestDemand.upper_bound)}` : 'n/a'}.</div></article>
+          <article class=\"metric-card\"><div><div class=\"metric-label\">Crude Supply Forecast</div><div class=\"metric-value\">${metric(latestSupply?.expected_crude_arrival_volume)}</div></div><div class=\"metric-sub\">Market-adjusted crude arrivals with confidence band ${latestSupply?.confidence_band || 'n/a'}.</div></article>
+          <article class=\"metric-card\"><div><div class=\"metric-label\">Disruption Score</div><div class=\"metric-value\">${latestRisk ? latestRisk.disruption_score.toFixed(2) : 'n/a'}</div></div><div class=\"metric-sub\">Derived from Brent, WTI, inventory tightness, and short-window price volatility.</div></article>
+          <article class=\"metric-card\"><div><div class=\"metric-label\">Artifacts Loaded</div><div class=\"metric-value\">${demand.length + supply.length + risks.length + alerts.length + domestic.length + market.length}</div></div><div class=\"metric-sub\">Visible across persisted history and source-input endpoints for the selected view.</div></article>
+        </section>
+
+        <section class=\"grid\">
+          <article class=\"panel wide\">
+            <div class=\"panel-head\"><div><h2>Demand vs Supply Trend</h2><div class=\"panel-copy\">Persisted forecast history for demand and supply. The shapes become more useful as repeated scheduled runs accumulate.</div></div></div>
+            <div class=\"chart\">${chartMarkup(demandValues.length ? demandValues : [0], '#0d6c63')}</div>
+            <div class=\"legend\"><span><i style=\"background:#0d6c63\"></i>Demand forecast</span><span><i style=\"background:#c26a1b\"></i>Supply forecast</span></div>
+            <div class=\"chart\" style=\"margin-top:14px;\">${chartMarkup(supplyValues.length ? supplyValues : [0], '#c26a1b')}</div>
+          </article>
+
+          <article class=\"panel narrow\">
+            <div class=\"panel-head\"><div><h2>Latest Drivers</h2><div class=\"panel-copy\">Top factors feeding the most recent risk snapshot.</div></div></div>
+            <div class=\"driver-list\">${(latestRisk?.top_risk_drivers || ['No drivers available yet.']).map(driver => `<div class=\"driver-item\">${driver}</div>`).join('')}</div>
+          </article>
+
+          <article class=\"panel narrow\">
+            <div class=\"panel-head\"><div><h2>Risk Trend</h2><div class=\"panel-copy\">Persisted risk snapshots from the API, useful for auditability and dashboard history.</div></div></div>
+            <div class=\"chart\">${chartMarkup(riskValues.length ? riskValues : [0], '#ad3f34')}</div>
+          </article>
+
+          <article class=\"panel wide\">
+            <div class=\"panel-head\"><div><h2>Alert Feed</h2><div class=\"panel-copy\">Most recent persisted alerts, newest first.</div></div></div>
+            <div class=\"feed\">${compactRows(alerts, item => `
+                <div class=\"feed-item\">
+                  <div class=\"feed-top\"><div><div class=\"${riskBadge(item.level)}\">${item.level}</div><h3 style=\"margin-top:10px; font-size:24px;\">${item.title}</h3></div><div class=\"small muted\">${isoDate(item.as_of)}</div></div>
+                  <div class=\"small\" style=\"line-height:1.6; margin-bottom:10px;\">${item.message}</div>
+                  <div class=\"small muted\">${item.drivers.join(' | ')}</div>
+                </div>
+              `)}</div>
+          </article>
+
+          <article class=\"panel wide\">
+            <div class=\"panel-head\"><div><h2>Source Inputs</h2><div class=\"panel-copy\">Latest PPAC and EIA observations that feed the current forecast and risk pipeline.</div></div></div>
+            <div class=\"grid\" style=\"gap:14px;\">
+              <div class=\"panel narrow\" style=\"grid-column: span 6; padding:0; background:transparent; border:none; box-shadow:none;\">
+                <div class=\"feed-item\">
+                  <h3 style=\"font-size:24px; margin-bottom:10px;\">Domestic PPAC Inputs</h3>
+                  <div class=\"evidence-stack\">${renderEvidence(domestic)}</div>
+                </div>
+              </div>
+              <div class=\"panel narrow\" style=\"grid-column: span 6; padding:0; background:transparent; border:none; box-shadow:none;\">
+                <div class=\"feed-item\">
+                  <h3 style=\"font-size:24px; margin-bottom:10px;\">EIA Market Inputs</h3>
+                  <div class=\"evidence-stack\">${renderEvidence(market)}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class=\"panel wide\">
+            <div class=\"panel-head\"><div><h2>Forecast History Table</h2><div class=\"panel-copy\">Compact persisted rows for quick operator comparison.</div></div></div>
+            <div class=\"table-stack\">
+              <div class=\"table-wrap\"><table><thead><tr><th>Forecast Date</th><th>Demand</th><th>Interval</th><th>Model</th></tr></thead><tbody>${demand.length ? demand.slice(0, 5).map(item => `<tr><td>${item.forecast_date}</td><td>${metric(item.predicted_lpg_demand)}</td><td>${metric(item.lower_bound)} to ${metric(item.upper_bound)}</td><td>${item.model_version}</td></tr>`).join('') : '<tr><td colspan="4">No demand history yet.</td></tr>'}</tbody></table></div>
+              <div class=\"table-wrap\"><table><thead><tr><th>Forecast Date</th><th>Supply</th><th>Confidence Band</th><th>Model</th></tr></thead><tbody>${supply.length ? supply.slice(0, 5).map(item => `<tr><td>${item.forecast_date}</td><td>${metric(item.expected_crude_arrival_volume)}</td><td>${item.confidence_band}</td><td>${item.model_version}</td></tr>`).join('') : '<tr><td colspan="4">No supply history yet.</td></tr>'}</tbody></table></div>
+            </div>
+          </article>
+
+          <article class=\"panel narrow\">
+            <div class=\"panel-head\"><div><h2>Risk Snapshot Table</h2><div class=\"panel-copy\">Latest persisted risk rows for the selected horizon.</div></div></div>
+            <div class=\"table-wrap\"><table><thead><tr><th>As Of</th><th>Risk</th><th>Gap</th></tr></thead><tbody>${risks.length ? risks.slice(0, 5).map(item => `<tr><td>${isoDate(item.as_of)}</td><td>${item.risk_score.toFixed(2)} ${item.risk_level}</td><td>${item.supply_gap_score.toFixed(2)}</td></tr>`).join('') : '<tr><td colspan="3">No risk history yet.</td></tr>'}</tbody></table></div>
+          </article>
+        </section>`;
+
+      document.querySelectorAll('[data-horizon]').forEach(button => {
+        button.addEventListener('click', () => {
+          selectedHorizon = Number(button.dataset.horizon);
+          latestRunMeta = { mode: 'persisted', timestamp: null };
+          loadDashboard();
+        });
+      });
+
+      document.getElementById('reload-history').addEventListener('click', async () => {
+        latestRunMeta = { mode: 'persisted', timestamp: new Date().toISOString() };
+        await loadDashboard();
+      });
+
+      document.getElementById('run-refresh').addEventListener('click', async () => {
+        const runButton = document.getElementById('run-refresh');
+        runButton.disabled = true;
+        runButton.textContent = 'Running...';
+        try {
+          await Promise.all([
+            fetch(`/demand-forecast?horizon=${selectedHorizon}`),
+            fetch(`/supply-forecast?horizon=${selectedHorizon}`),
+            fetch(`/risk-score?horizon=${selectedHorizon}`),
+            fetch(`/alerts?horizon=${selectedHorizon}`),
+          ]);
+          latestRunMeta = { mode: 'live-refresh', timestamp: new Date().toISOString() };
+          await loadDashboard();
+        } finally {
+          runButton.disabled = false;
+          runButton.textContent = 'Run latest snapshot';
+        }
+      });
+    }
+
+    async function loadDashboard() {
+      const [demand, supply, risk, alerts, domestic, market] = await Promise.all([
+        fetch(`/history/demand-forecasts?limit=12&horizon=${selectedHorizon}`).then(r => r.json()),
+        fetch(`/history/supply-forecasts?limit=12&horizon=${selectedHorizon}`).then(r => r.json()),
+        fetch(`/history/risk-snapshots?limit=12&horizon=${selectedHorizon}`).then(r => r.json()),
+        fetch('/history/alerts?limit=8').then(r => r.json()),
+        fetch('/source/domestic-observations?limit=6').then(r => r.json()),
+        fetch('/source/market-observations?limit=6').then(r => r.json()),
+      ]);
+      render({ demand, supply, risk, alerts, domestic, market });
+    }
+
+    async function boot() {
+      try {
+        await loadDashboard();
+      } catch (error) {
+        document.getElementById('app').innerHTML = 'Dashboard failed to load persisted history and source endpoints.';
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
