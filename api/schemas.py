@@ -1,4 +1,5 @@
 ﻿from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -7,6 +8,18 @@ class HealthResponse(BaseModel):
     status: str
     app: str
     environment: str
+
+
+class SchedulerStatusResponse(BaseModel):
+    enabled: bool
+    started: bool
+    interval_seconds: int
+    horizons: list[int]
+    last_run_started_at: str | None = None
+    last_run_finished_at: str | None = None
+    last_status: str
+    last_error: str | None = None
+    run_count: int
 
 
 class DemandForecastResponse(BaseModel):
@@ -90,11 +103,22 @@ class AlertHistoryItem(BaseModel):
 
 
 class SourceObservationItem(BaseModel):
+    id: int
     source_name: str
     metric_name: str
     observation_date: str
     value: float
     unit: str | None = None
+
+
+class SourceObservationDetailResponse(BaseModel):
+    id: int
+    source_name: str
+    metric_name: str
+    observation_date: str
+    value: float
+    unit: str | None = None
+    source_record: dict[str, Any] | list[Any] | str | None = None
 
 
 class DemandForecastHistoryResponse(BaseModel):

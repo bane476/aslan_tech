@@ -14,6 +14,8 @@ from api.schemas import (
     RiskHistoryResponse,
     RiskScoreResponse,
     ScenariosResponse,
+    SchedulerStatusResponse,
+    SourceObservationDetailResponse,
     SourceObservationResponse,
     SupplyForecastHistoryResponse,
     SupplyForecastResponse,
@@ -22,30 +24,25 @@ from app.bootstrap import init_db
 from app.config import settings
 from app.data_access import (
     latest_data_timestamp,
+    load_domestic_observation_detail,
     load_latest_domestic_observations,
     load_latest_market_observations,
+    load_market_observation_detail,
     load_recent_alerts,
     load_recent_demand_forecasts,
     load_recent_risk_snapshots,
     load_recent_supply_forecasts,
-    replace_alerts_for_timestamp,
-    store_demand_forecast,
-    store_risk_snapshot,
-    store_supply_forecast,
 )
 from app.db import get_db
+from app.materialization import (
+    materialize_alerts,
+    materialize_demand_forecast,
+    materialize_risk_snapshot,
+    materialize_supply_forecast,
+)
+from app.scheduler import scheduler
 from ingestion.domestic_energy_ingest import ingest_ppac_data
 from ingestion.market_ingest import ingest_market_data
-from models.demand_forecast.service import forecast_lpg_demand
-from models.disruption_detection.service import compute_disruption_score
-from models.supply_forecast.service import forecast_crude_supply
-from processing.feature_pipeline import build_feature_snapshot
-from risk_engine.alert_rules import build_alerts
-from risk_engine.risk_scoring import (
-    calculate_risk_score,
-    calculate_supply_gap_score,
-    risk_level_for_score,
-)
 
 app = FastAPI(title=settings.app_name)
 
@@ -53,6 +50,12 @@ app = FastAPI(title=settings.app_name)
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    scheduler.stop()
 
 
 def validate_horizon(horizon: int) -> int:
@@ -71,32 +74,6 @@ def combined_data_version(db: Session) -> str:
     return f"PPAC:{latest_data_timestamp(db, 'PPAC')}|EIA:{latest_data_timestamp(db, 'EIA')}"
 
 
-def build_live_risk_payload(db: Session, horizon: int) -> tuple[datetime, dict]:
-    snapshot = build_feature_snapshot(db, horizon)
-    demand = forecast_lpg_demand(db, horizon)
-    disruption = compute_disruption_score(db, horizon)
-    supply_gap_score = calculate_supply_gap_score(
-        demand["predicted_lpg_demand"],
-        snapshot.lpg_supply_signal,
-    )
-    risk_score = calculate_risk_score(supply_gap_score, disruption["disruption_score"])
-    risk_level = risk_level_for_score(risk_score)
-    drivers = [
-        f"Market-adjusted LPG import supply proxy is {round(snapshot.lpg_supply_signal, 2)} against demand forecast {demand['predicted_lpg_demand']}",
-        *disruption["drivers"],
-    ]
-    as_of = datetime.now(timezone.utc)
-    payload = {
-        "horizon_days": horizon,
-        "supply_gap_score": supply_gap_score,
-        "disruption_score": disruption["disruption_score"],
-        "risk_score": risk_score,
-        "risk_level": risk_level,
-        "top_risk_drivers": drivers,
-    }
-    return as_of, payload
-
-
 @app.get("/dashboard", include_in_schema=False)
 def dashboard() -> object:
     return render_dashboard_html()
@@ -109,6 +86,11 @@ def health() -> HealthResponse:
         app=settings.app_name,
         environment=settings.app_env,
     )
+
+
+@app.get("/scheduler/status", response_model=SchedulerStatusResponse)
+def scheduler_status() -> SchedulerStatusResponse:
+    return SchedulerStatusResponse(**scheduler.state.snapshot())
 
 
 @app.post("/ingestion/ppac", response_model=IngestionResponse)
@@ -133,10 +115,9 @@ def demand_forecast(
 ) -> DemandForecastResponse:
     horizon = validate_horizon(horizon)
     try:
-        result = forecast_lpg_demand(db, horizon)
+        result = materialize_demand_forecast(db, horizon)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    store_demand_forecast(db, result)
     db.commit()
     return DemandForecastResponse(
         as_of=datetime.now(timezone.utc),
@@ -152,10 +133,9 @@ def supply_forecast(
 ) -> SupplyForecastResponse:
     horizon = validate_horizon(horizon)
     try:
-        result = forecast_crude_supply(db, horizon)
+        result = materialize_supply_forecast(db, horizon)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    store_supply_forecast(db, result)
     db.commit()
     return SupplyForecastResponse(
         as_of=datetime.now(timezone.utc),
@@ -171,20 +151,9 @@ def risk_score(
 ) -> RiskScoreResponse:
     horizon = validate_horizon(horizon)
     try:
-        as_of, payload = build_live_risk_payload(db, horizon)
+        as_of, payload = materialize_risk_snapshot(db, horizon)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    store_risk_snapshot(
-        db,
-        as_of=as_of,
-        horizon_days=payload["horizon_days"],
-        supply_gap_score=payload["supply_gap_score"],
-        disruption_score=payload["disruption_score"],
-        risk_score=payload["risk_score"],
-        risk_level=payload["risk_level"],
-        top_risk_drivers=payload["top_risk_drivers"],
-    )
     db.commit()
     return RiskScoreResponse(
         as_of=as_of,
@@ -200,16 +169,9 @@ def alerts(
 ) -> AlertsResponse:
     horizon = validate_horizon(horizon)
     try:
-        as_of, risk_payload = build_live_risk_payload(db, horizon)
+        as_of, alert_items = materialize_alerts(db, horizon)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    alert_items = build_alerts(
-        risk_score=risk_payload["risk_score"],
-        supply_gap_score=risk_payload["supply_gap_score"],
-        drivers=risk_payload["top_risk_drivers"],
-    )
-    replace_alerts_for_timestamp(db, as_of=as_of, alerts=alert_items)
     db.commit()
     return AlertsResponse(
         as_of=as_of,
@@ -287,6 +249,14 @@ def domestic_observations(
     )
 
 
+@app.get("/source/domestic-observations/{observation_id}", response_model=SourceObservationDetailResponse)
+def domestic_observation_detail(observation_id: int, db: Session = Depends(get_db)) -> SourceObservationDetailResponse:
+    detail = load_domestic_observation_detail(db, observation_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Domestic observation not found.")
+    return SourceObservationDetailResponse(**detail)
+
+
 @app.get("/source/market-observations", response_model=SourceObservationResponse)
 def market_observations(
     limit: int = Query(12, description="Maximum number of source rows to return"),
@@ -297,6 +267,14 @@ def market_observations(
         data_version=latest_data_timestamp(db, "EIA"),
         items=load_latest_market_observations(db, limit),
     )
+
+
+@app.get("/source/market-observations/{observation_id}", response_model=SourceObservationDetailResponse)
+def market_observation_detail(observation_id: int, db: Session = Depends(get_db)) -> SourceObservationDetailResponse:
+    detail = load_market_observation_detail(db, observation_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Market observation not found.")
+    return SourceObservationDetailResponse(**detail)
 
 
 @app.get("/scenarios", response_model=ScenariosResponse)

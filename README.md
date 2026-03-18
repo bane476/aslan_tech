@@ -15,7 +15,10 @@ This repository now provides:
 - persisted demand forecasts, supply forecasts, risk snapshots, and alerts
 - history endpoints for persisted model artifacts
 - source-observation endpoints for latest PPAC and EIA inputs
-- an operator dashboard at `/dashboard` with horizon switching, manual refresh, delta comparisons, history tables, and source-input evidence panels
+- detail endpoints for exact stored raw source records
+- automatic scheduled materialization of forecast and risk artifacts
+- a scheduler status endpoint and scheduler visibility in the dashboard
+- an operator dashboard at `/dashboard` with horizon switching, manual refresh, delta comparisons, history tables, source-input evidence panels, and clickable traceability views
 
 ## What Works Today
 
@@ -43,8 +46,14 @@ This repository now provides:
   Returns latest stored PPAC domestic input observations.
 - `GET /source/market-observations`
   Returns latest stored EIA market input observations.
+- `GET /source/domestic-observations/{id}`
+  Returns the exact stored raw PPAC source record for one observation.
+- `GET /source/market-observations/{id}`
+  Returns the exact stored raw EIA source record for one observation.
+- `GET /scheduler/status`
+  Returns whether automatic scheduled runs are enabled, the interval, the selected horizons, and the latest run status.
 - `GET /dashboard`
-  Serves an operator dashboard that visualizes persisted history, supports 30/60 day switching, can trigger fresh model runs, compares the latest run to the previous one, and shows the latest PPAC and EIA source inputs.
+  Serves an operator dashboard that visualizes persisted history, supports 30/60 day switching, can trigger fresh model runs, compares the latest run to the previous one, shows the latest PPAC and EIA source inputs, lets users inspect the raw ingested record behind each source row, and displays scheduler state.
 - `GET /health`
   Basic API health check.
 
@@ -80,6 +89,7 @@ http://localhost:8000/supply-forecast?horizon=30
 http://localhost:8000/risk-score?horizon=30
 http://localhost:8000/alerts?horizon=30
 http://localhost:8000/dashboard
+http://localhost:8000/scheduler/status
 ```
 
 Fetch history and source evidence:
@@ -92,6 +102,22 @@ http://localhost:8000/history/alerts?limit=20
 http://localhost:8000/source/domestic-observations?limit=12
 http://localhost:8000/source/market-observations?limit=12
 ```
+
+Fetch exact raw source records:
+
+```bash
+http://localhost:8000/source/domestic-observations/1
+http://localhost:8000/source/market-observations/1
+```
+
+## Scheduler Settings
+
+These values can be configured in `.env`:
+
+- `SCHEDULER_ENABLED=true|false`
+- `SCHEDULER_INTERVAL_SECONDS=3600`
+- `SCHEDULER_RUN_ON_STARTUP=true|false`
+- `SCHEDULER_HORIZONS=30,60`
 
 ## EIA Setup
 
@@ -116,7 +142,7 @@ You can use:
 
 ## Next Build Steps
 
-1. Add drill-down pages for full source record details behind each observation.
+1. Add a durable scheduler job log table so scheduled runs are auditable beyond in-memory status.
 2. Expand PPAC ingestion to refinery throughput and other domestic indicators.
 3. Strengthen the demand model beyond a simple linear monthly baseline.
 4. Add evaluation and backtesting for forecast quality.

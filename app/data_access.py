@@ -8,6 +8,15 @@ from sqlalchemy.orm import Session
 from app.models import Alert, DataLoad, DemandForecast, DomesticEnergyObservation, MarketObservation, RiskSnapshot, SupplyForecast
 
 
+def _parse_source_record(raw: str | None):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
 def replace_domestic_observations(
     db: Session,
     source_name: str,
@@ -255,6 +264,7 @@ def load_latest_domestic_observations(db: Session, limit: int) -> list[dict]:
     ).all()
     return [
         {
+            "id": row.id,
             "source_name": row.source_name,
             "metric_name": row.metric_name,
             "observation_date": row.observation_date.isoformat(),
@@ -273,6 +283,7 @@ def load_latest_market_observations(db: Session, limit: int) -> list[dict]:
     ).all()
     return [
         {
+            "id": row.id,
             "source_name": row.source_name,
             "metric_name": row.metric_name,
             "observation_date": row.observation_date.isoformat(),
@@ -281,3 +292,33 @@ def load_latest_market_observations(db: Session, limit: int) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def load_domestic_observation_detail(db: Session, observation_id: int) -> dict | None:
+    row = db.get(DomesticEnergyObservation, observation_id)
+    if row is None:
+        return None
+    return {
+        "id": row.id,
+        "source_name": row.source_name,
+        "metric_name": row.metric_name,
+        "observation_date": row.observation_date.isoformat(),
+        "value": row.value,
+        "unit": row.unit,
+        "source_record": _parse_source_record(row.source_record),
+    }
+
+
+def load_market_observation_detail(db: Session, observation_id: int) -> dict | None:
+    row = db.get(MarketObservation, observation_id)
+    if row is None:
+        return None
+    return {
+        "id": row.id,
+        "source_name": row.source_name,
+        "metric_name": row.metric_name,
+        "observation_date": row.observation_date.isoformat(),
+        "value": row.value,
+        "unit": row.unit,
+        "source_record": _parse_source_record(row.source_record),
+    }
