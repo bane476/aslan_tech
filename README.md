@@ -141,6 +141,7 @@ Files added for deployment readiness:
 
 - `DATABASE_URL` is injected from the managed Postgres instance.
 - `PORT` is set to `10000` in `render.yaml`.
+- The web service and Postgres database must be in the same Render region because the blueprint uses the internal Postgres connection string.
 - Scheduler remains enabled, so the single deployed web instance will continue creating forecast and risk artifacts automatically.
 - If you later scale the web service above one instance, scheduler ownership should be separated into a dedicated worker to avoid duplicate scheduled runs.
 - The current blueprint uses Render `free` plans for both the web service and Postgres.
