@@ -219,12 +219,42 @@ def render_dashboard_html() -> HTMLResponse:
     }
     function refreshStatusLine() {
       if (!latestRunMeta.timestamp) return 'Using persisted history';
+      if (latestRunMeta.mode === 'full-refresh') return `Full refresh completed at ${isoDate(latestRunMeta.timestamp)}`;
       if (latestRunMeta.mode === 'live-refresh') return `Fresh run completed at ${isoDate(latestRunMeta.timestamp)}`;
       return `Viewing persisted artifacts as of ${isoDate(latestRunMeta.timestamp)}`;
     }
     function compactRows(rows, renderer, emptyMessage = 'No persisted rows yet.') {
       if (!rows.length) return `<div class="feed-item">${emptyMessage}</div>`;
       return rows.map(renderer).join('');
+    }
+    async function fetchJsonOrThrow(url, options) {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      let payload = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch (error) {
+        payload = text;
+      }
+      if (!response.ok) {
+        const detail = typeof payload === 'string' ? payload : payload?.detail || JSON.stringify(payload);
+        throw new Error(`${url} failed: ${detail}`);
+      }
+      return payload;
+    }
+    async function runMaterializationSuite(horizon) {
+      await Promise.all([
+        fetchJsonOrThrow(`/demand-forecast?horizon=${horizon}`),
+        fetchJsonOrThrow(`/supply-forecast?horizon=${horizon}`),
+        fetchJsonOrThrow(`/risk-score?horizon=${horizon}`),
+        fetchJsonOrThrow(`/alerts?horizon=${horizon}`),
+      ]);
+    }
+    async function runFullRefresh() {
+      await fetchJsonOrThrow('/ingestion/ppac', { method: 'POST' });
+      await fetchJsonOrThrow('/ingestion/eia', { method: 'POST' });
+      await runMaterializationSuite(30);
+      await runMaterializationSuite(60);
     }
     function ensureDefaultDetail(domestic, market) {
       if (selectedDetail) return;
@@ -447,18 +477,31 @@ def render_dashboard_html() -> HTMLResponse:
         runButton.disabled = true;
         runButton.textContent = 'Running...';
         try {
-          await Promise.all([
-            fetch(`/demand-forecast?horizon=${selectedHorizon}`),
-            fetch(`/supply-forecast?horizon=${selectedHorizon}`),
-            fetch(`/risk-score?horizon=${selectedHorizon}`),
-            fetch(`/alerts?horizon=${selectedHorizon}`),
-          ]);
+          await runMaterializationSuite(selectedHorizon);
           latestRunMeta = { mode: 'live-refresh', timestamp: new Date().toISOString() };
           selectedDetail = null;
           await loadDashboard(true);
+        } catch (error) {
+          window.alert(error.message || 'Latest snapshot failed.');
         } finally {
           runButton.disabled = false;
           runButton.textContent = 'Run latest snapshot';
+        }
+      });
+      document.getElementById('refresh-all').addEventListener('click', async () => {
+        const refreshButton = document.getElementById('refresh-all');
+        refreshButton.disabled = true;
+        refreshButton.textContent = 'Refreshing...';
+        try {
+          await runFullRefresh();
+          latestRunMeta = { mode: 'full-refresh', timestamp: new Date().toISOString() };
+          selectedDetail = null;
+          await loadDashboard(true);
+        } catch (error) {
+          window.alert(error.message || 'Full refresh failed.');
+        } finally {
+          refreshButton.disabled = false;
+          refreshButton.textContent = 'Refresh all data';
         }
       });
       document.querySelectorAll('[data-observation-id]').forEach(button => {
