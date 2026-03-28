@@ -64,8 +64,27 @@ def render_dashboard_html() -> HTMLResponse:
     .legend { margin-top: 14px; color: var(--muted); font-size: 13px; }
     .legend span { display: inline-flex; align-items: center; gap: 8px; }
     .legend i { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
-    .feed, .driver-list, .table-stack, .evidence-stack { display: grid; gap: 12px; }
+    .feed, .driver-list, .table-stack, .evidence-stack, .action-list, .summary-grid { display: grid; gap: 12px; }
     .feed-item, .driver-item, .compare-card, .evidence-item, .detail-shell { padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,0.58); border: 1px solid var(--line); }
+    .summary-band { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 18px; margin-bottom: 18px; }
+    .summary-card { padding: 22px; border-radius: 24px; background: linear-gradient(180deg, rgba(19,42,46,0.96), rgba(31,54,59,0.96)); color: #eef5f5; border: 1px solid rgba(19,42,46,0.24); box-shadow: var(--shadow); }
+    .summary-card .eyebrow, .summary-card .small, .summary-card .meta-note { color: rgba(238,245,245,0.72); }
+    .summary-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .summary-title { font-size: clamp(26px, 3vw, 38px); line-height: 1.04; max-width: 12ch; }
+    .summary-copy { margin-top: 14px; color: rgba(238,245,245,0.9); line-height: 1.7; font-size: 15px; max-width: 60ch; }
+    .summary-grid { margin-top: 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .summary-metric { padding: 14px; border-radius: 16px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); }
+    .summary-metric-value { margin-top: 8px; font-size: 24px; font-weight: 650; }
+    .summary-metric-copy { margin-top: 6px; color: rgba(238,245,245,0.72); font-size: 13px; line-height: 1.5; }
+    .action-card { padding: 22px; border-radius: 24px; background: rgba(255,252,245,0.86); border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .action-item { padding: 14px 16px; border-radius: 16px; background: rgba(255,255,255,0.72); border: 1px solid var(--line); }
+    .action-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    .action-title { margin-top: 6px; font-size: 18px; font-weight: 650; }
+    .action-copy { margin-top: 6px; color: var(--muted); line-height: 1.6; font-size: 14px; }
+    .change-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .change-card { padding: 16px; border-radius: 18px; background: rgba(255,255,255,0.6); border: 1px solid var(--line); }
+    .change-main { margin-top: 8px; font-size: 28px; font-weight: 650; }
+    .change-copy { margin-top: 6px; color: var(--muted); line-height: 1.5; font-size: 13px; }
     .feed-top { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; align-items: center; }
     .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 6px 10px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; background: var(--accent-soft); color: var(--accent); }
     .badge.medium { background: rgba(194, 106, 27, 0.12); color: var(--warning); }
@@ -88,7 +107,7 @@ def render_dashboard_html() -> HTMLResponse:
     .evidence-item.selected { border-color: rgba(13,108,99,0.45); background: rgba(13,108,99,0.10); }
     .evidence-meta { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
     .evidence-item > div:first-child { min-width: 0; }
-    .evidence-item strong, .detail-value, .detail-summary { overflow-wrap: anywhere; word-break: break-word; }
+    .evidence-item strong, .detail-value, .detail-summary, .summary-metric-value { overflow-wrap: anywhere; word-break: break-word; }
     .source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .source-column { min-width: 0; padding: 0; background: transparent; border: none; box-shadow: none; }
     .source-column .feed-item, .source-column .detail-shell { height: 100%; }
@@ -106,6 +125,7 @@ def render_dashboard_html() -> HTMLResponse:
 
     @media (max-width: 980px) {
       .hero { grid-template-columns: 1fr; }
+      .summary-band, .summary-grid, .change-strip { grid-template-columns: 1fr; }
       .metric-card { grid-column: span 6; }
       .panel, .panel.wide, .panel.narrow { grid-column: span 12; }
       .source-grid { grid-template-columns: 1fr; }
@@ -140,7 +160,7 @@ def render_dashboard_html() -> HTMLResponse:
     }
     function deltaClass(delta) { if (delta > 0) return 'delta up'; if (delta < 0) return 'delta down'; return 'delta'; }
     function deltaText(current, previous) {
-      if (current == null || previous == null) return 'No prior comparison';
+      if (current == null || previous == null) return { text: 'No prior comparison', className: 'delta' };
       const delta = current - previous;
       const direction = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
       const prefix = delta > 0 ? '+' : '';
@@ -295,6 +315,96 @@ def render_dashboard_html() -> HTMLResponse:
           <div class="detail-value">${value}</div>
         </div>`).join('');
     }
+    function changeDescriptor(current, previous, label, formatter = metric) {
+      if (current == null || previous == null) {
+        return `No previous ${label.toLowerCase()} snapshot is available yet.`;
+      }
+      const delta = current - previous;
+      if (delta === 0) {
+        return `Current ${label.toLowerCase()} remains ${formatter(current)} versus the previous run.`;
+      }
+      const direction = delta > 0 ? 'up' : 'down';
+      return `${label} moved ${direction} by ${formatter(Math.abs(delta))} versus the previous run.`;
+    }
+    function recommendationItems(latestRisk, latestDemand, latestSupply, latestAlert) {
+      if (!latestRisk) {
+        return [{
+          title: 'Load source data first',
+          copy: 'Run PPAC and EIA ingestion, then materialize the latest snapshot so the cockpit can produce a real outlook.',
+          kicker: 'Setup',
+        }];
+      }
+      const actions = [];
+      if (latestRisk.risk_score >= 70) {
+        actions.push({
+          title: 'Escalate supply review now',
+          copy: `Risk is ${latestRisk.risk_level}. Pull procurement, operations, and leadership into a same-day review of the next ${selectedHorizon} days.`,
+          kicker: 'Immediate',
+        });
+      }
+      if (latestRisk.supply_gap_score >= 20) {
+        actions.push({
+          title: 'Protect LPG availability',
+          copy: `Demand is outrunning the LPG proxy by ${latestRisk.supply_gap_score.toFixed(2)} points. Review import cover, buffer stock, and alternate sourcing options.`,
+          kicker: 'Supply gap',
+        });
+      }
+      if (latestRisk.disruption_score >= 20) {
+        actions.push({
+          title: 'Monitor market stress daily',
+          copy: 'Price pressure or inventory tightness is now materially contributing to the outlook. Tighten watch frequency on Brent, WTI, and inventory prints.',
+          kicker: 'Market watch',
+        });
+      }
+      if (latestAlert) {
+        actions.push({
+          title: 'Work the latest alert',
+          copy: `${latestAlert.title}: ${latestAlert.message}`,
+          kicker: 'Alert',
+        });
+      }
+      if (latestSupply && latestDemand && actions.length < 3) {
+        actions.push({
+          title: 'Track the next scheduled run',
+          copy: 'Use the next scheduler cycle as the operating checkpoint and compare whether demand, supply, and risk are converging or diverging.',
+          kicker: 'Cadence',
+        });
+      }
+      return actions.slice(0, 4);
+    }
+    function executiveSummary(latestRisk, latestDemand, latestSupply, latestAlert) {
+      if (!latestRisk || !latestDemand || !latestSupply) {
+        return {
+          title: 'Decision support is not ready yet',
+          copy: 'This cockpit needs at least one successful ingestion and one persisted snapshot before it can generate a usable outlook.',
+        };
+      }
+      const pressure = latestRisk.risk_score >= 70 ? 'high' : latestRisk.risk_score >= 40 ? 'elevated' : 'contained';
+      const alertSentence = latestAlert ? ` Latest alert: ${latestAlert.title}.` : '';
+      return {
+        title: `${selectedHorizon}-day outlook is ${pressure}`,
+        copy: `Current risk is ${latestRisk.risk_score.toFixed(2)} at ${latestRisk.risk_level}. Demand is forecast at ${metric(latestDemand.predicted_lpg_demand)} while supply is running at ${metric(latestSupply.expected_crude_arrival_volume)}. The main operator question is whether price pressure and supply tightness are starting to outrun the recent import baseline.${alertSentence}`,
+      };
+    }
+    function whatChangedCards(latestDemand, priorDemand, latestSupply, priorSupply, latestRisk, priorRisk) {
+      return [
+        {
+          label: 'Demand',
+          value: metric(latestDemand?.predicted_lpg_demand),
+          note: changeDescriptor(latestDemand?.predicted_lpg_demand, priorDemand?.predicted_lpg_demand, 'Demand forecast'),
+        },
+        {
+          label: 'Supply',
+          value: metric(latestSupply?.expected_crude_arrival_volume),
+          note: changeDescriptor(latestSupply?.expected_crude_arrival_volume, priorSupply?.expected_crude_arrival_volume, 'Supply forecast'),
+        },
+        {
+          label: 'Risk',
+          value: latestRisk ? latestRisk.risk_score.toFixed(2) : 'n/a',
+          note: changeDescriptor(latestRisk?.risk_score, priorRisk?.risk_score, 'Risk score', value => Number(value).toFixed(2)),
+        },
+      ];
+    }
     function detailMarkup() {
       if (!selectedDetail) {
         return '<div class="feed-item">No source record available yet.</div>';
@@ -402,14 +512,17 @@ def render_dashboard_html() -> HTMLResponse:
       const supplyDelta = deltaText(latestSupply?.expected_crude_arrival_volume, priorSupply?.expected_crude_arrival_volume);
       const riskDelta = deltaText(latestRisk?.risk_score, priorRisk?.risk_score);
       const schedulerLabel = scheduler.enabled ? `${scheduler.last_status} • every ${scheduler.interval_seconds}s` : 'disabled';
+      const summary = executiveSummary(latestRisk, latestDemand, latestSupply, latestAlert);
+      const actions = recommendationItems(latestRisk, latestDemand, latestSupply, latestAlert);
+      const changed = whatChangedCards(latestDemand, priorDemand, latestSupply, priorSupply, latestRisk, priorRisk);
       const app = document.getElementById('app');
       app.className = 'shell';
       app.innerHTML = `
         <section class=\"hero\">
           <div class=\"hero-panel\">
             <div class=\"eyebrow\">Aslan Technologies</div>
-            <h1>Energy risk cockpit for India-focused supply stress.</h1>
-            <div class=\"hero-copy\">This dashboard reads persisted forecast, risk, alert, and source-input artifacts from the API. It is designed as an operator view: latest state first, trend context second, raw drivers and source evidence always visible.</div>
+            <h1>${summary.title}</h1>
+            <div class=\"hero-copy\">${summary.copy}</div>
             <div class=\"controls\">
               <div class=\"segment\"><button class=\"${selectedHorizon === 30 ? 'active' : ''}\" data-horizon=\"30\">30 day</button><button class=\"${selectedHorizon === 60 ? 'active' : ''}\" data-horizon=\"60\">60 day</button></div>
               <button id=\"run-refresh\" class=\"action\">Run latest snapshot</button>
@@ -444,7 +557,7 @@ def render_dashboard_html() -> HTMLResponse:
 
         <section class=\"grid\">
           <article class=\"panel wide\"><div class=\"panel-head\"><div><h2>Demand vs Supply Trend</h2><div class=\"panel-copy\">Persisted forecast history for demand and supply. The shapes become more useful as repeated scheduled runs accumulate.</div></div></div><div class=\"chart\">${chartMarkup(demandValues.length ? demandValues : [0], '#0d6c63')}</div><div class=\"legend\"><span><i style=\"background:#0d6c63\"></i>Demand forecast</span><span><i style=\"background:#c26a1b\"></i>Supply forecast</span></div><div class=\"chart\" style=\"margin-top:14px;\">${chartMarkup(supplyValues.length ? supplyValues : [0], '#c26a1b')}</div></article>
-          <article class=\"panel narrow\"><div class=\"panel-head\"><div><h2>Latest Drivers</h2><div class=\"panel-copy\">Top factors feeding the most recent risk snapshot.</div></div></div><div class=\"driver-list\">${(latestRisk?.top_risk_drivers || ['No drivers available yet.']).map(driver => `<div class=\"driver-item\">${driver}</div>`).join('')}</div></article>
+          <article class=\"panel narrow\"><div class=\"panel-head\"><div><h2>Recommended Actions</h2><div class=\"panel-copy\">Concrete next steps generated from the current risk, alert, and supply-demand picture.</div></div></div><div class=\"driver-list\">${actions.map(item => `<div class=\"driver-item\"><strong>${item.title}</strong><div class=\"small\" style=\"margin-top:8px;\">${item.copy}</div></div>`).join('')}</div></article>
           <article class=\"panel narrow\"><div class=\"panel-head\"><div><h2>Risk Trend</h2><div class=\"panel-copy\">Persisted risk snapshots from the API, useful for auditability and dashboard history.</div></div></div><div class=\"chart\">${chartMarkup(riskValues.length ? riskValues : [0], '#ad3f34')}</div></article>
           <article class=\"panel wide\"><div class=\"panel-head\"><div><h2>Alert Feed</h2><div class=\"panel-copy\">Most recent persisted alerts, newest first.</div></div></div><div class=\"feed\">${compactRows(alerts, item => `<div class=\"feed-item\"><div class=\"feed-top\"><div><div class=\"${riskBadge(item.level)}\">${item.level}</div><h3 style=\"margin-top:10px; font-size:24px;\">${item.title}</h3></div><div class=\"small muted\">${isoDate(item.as_of)}</div></div><div class=\"small\" style=\"line-height:1.6; margin-bottom:10px;\">${item.message}</div><div class=\"small muted\">${item.drivers.join(' | ')}</div></div>` )}</div></article>
           <article class=\"panel wide\"><div class=\"panel-head\"><div><h2>Source Inputs</h2><div class=\"panel-copy\">The selected source input is explained in the same card style as the rest of the dashboard. Raw payload is available only when needed.</div></div></div><div class=\"source-grid\"><div class=\"source-column\"><div class=\"feed-item\"><h3 style=\"font-size:24px; margin-bottom:10px;\">Domestic PPAC Inputs</h3><div class=\"evidence-stack\">${renderEvidence(domestic, 'domestic')}</div></div></div><div class=\"source-column\"><div class=\"feed-item\"><h3 style=\"font-size:24px; margin-bottom:10px;\">EIA Market Inputs</h3><div class=\"evidence-stack\">${renderEvidence(market, 'market')}</div></div></div><div class=\"source-column\">${detailMarkup()}</div></div></article>
