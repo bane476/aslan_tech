@@ -488,22 +488,24 @@ def render_dashboard_html() -> HTMLResponse:
           runButton.textContent = 'Run latest snapshot';
         }
       });
-      document.getElementById('refresh-all').addEventListener('click', async () => {
-        const refreshButton = document.getElementById('refresh-all');
-        refreshButton.disabled = true;
-        refreshButton.textContent = 'Refreshing...';
-        try {
-          await runFullRefresh();
-          latestRunMeta = { mode: 'full-refresh', timestamp: new Date().toISOString() };
-          selectedDetail = null;
-          await loadDashboard(true);
-        } catch (error) {
-          window.alert(error.message || 'Full refresh failed.');
-        } finally {
-          refreshButton.disabled = false;
-          refreshButton.textContent = 'Refresh all data';
-        }
-      });
+      const refreshAllButton = document.getElementById('refresh-all');
+      if (refreshAllButton) {
+        refreshAllButton.addEventListener('click', async () => {
+          refreshAllButton.disabled = true;
+          refreshAllButton.textContent = 'Refreshing...';
+          try {
+            await runFullRefresh();
+            latestRunMeta = { mode: 'full-refresh', timestamp: new Date().toISOString() };
+            selectedDetail = null;
+            await loadDashboard(true);
+          } catch (error) {
+            window.alert(error.message || 'Full refresh failed.');
+          } finally {
+            refreshAllButton.disabled = false;
+            refreshAllButton.textContent = 'Refresh all data';
+          }
+        });
+      }
       document.querySelectorAll('[data-observation-id]').forEach(button => {
         button.addEventListener('click', async () => {
           const sourceType = button.dataset.sourceType;
@@ -569,6 +571,7 @@ def render_dashboard_html() -> HTMLResponse:
             <div class=\"controls\">
               <div class=\"segment\"><button class=\"${selectedHorizon === 30 ? 'active' : ''}\" data-horizon=\"30\">30 day</button><button class=\"${selectedHorizon === 60 ? 'active' : ''}\" data-horizon=\"60\">60 day</button></div>
               <button id=\"run-refresh\" class=\"action\">Run latest snapshot</button>
+              <button id=\"refresh-all\" class=\"action secondary\">Refresh all data</button>
               <button id=\"reload-history\" class=\"action secondary\">Reload persisted history</button>
             </div>
             <div class=\"hero-meta\">
